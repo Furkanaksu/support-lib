@@ -1,5 +1,7 @@
 # support-lib
 
+[![JitPack](https://jitpack.io/v/aksufurkann/support-lib.svg)](https://jitpack.io/#aksufurkann/support-lib)
+
 Ktor + Exposed tabanlı, **yeniden kullanılabilir support (destek talebi) kütüphanesi**.
 Bir kez yazılır, GitHub'a konur, her yeni projede bağımlılık olarak eklenip iki satırla çağrılır.
 
@@ -31,7 +33,7 @@ dependencyResolutionManagement {
 
 ```kotlin
 dependencies {
-    implementation("com.github.KULLANICI_ADIN:support-lib:1.0.0")
+    implementation("com.github.aksufurkann:support-lib:1.0.1")
 }
 ```
 
@@ -95,8 +97,8 @@ SupportConfig(database = db, requireAuth = true, authName = "auth-jwt")
 ## Yayınlama (JitPack)
 
 ```bash
-git tag 1.0.0
-git push origin 1.0.0
+git tag 1.0.1
+git push origin 1.0.1
 ```
 
 Tag atıldıktan sonra JitPack ilk istekte derler. JDK 21 için repo kökündeki `jitpack.yml` kullanılır.
