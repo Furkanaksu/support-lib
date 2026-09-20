@@ -33,7 +33,7 @@ dependencyResolutionManagement {
 
 ```kotlin
 dependencies {
-    implementation("com.github.aksufurkann:support-lib:1.0.1")
+    implementation("com.github.aksufurkann:support-lib:1.0.2")
 }
 ```
 
@@ -97,8 +97,8 @@ SupportConfig(database = db, requireAuth = true, authName = "auth-jwt")
 ## Yayınlama (JitPack)
 
 ```bash
-git tag 1.0.1
-git push origin 1.0.1
+git tag 1.0.2
+git push origin 1.0.2
 ```
 
 Tag atıldıktan sonra JitPack ilk istekte derler. JDK 21 için repo kökündeki `jitpack.yml` kullanılır.
