@@ -1,6 +1,6 @@
 # support-lib
 
-[![JitPack](https://jitpack.io/v/aksufurkann/support-lib.svg)](https://jitpack.io/#aksufurkann/support-lib)
+[![JitPack](https://jitpack.io/v/Furkanaksu/support-lib.svg)](https://jitpack.io/#Furkanaksu/support-lib)
 
 Ktor + Exposed tabanlı, **yeniden kullanılabilir support (destek talebi) kütüphanesi**.
 Bir kez yazılır, GitHub'a konur, her yeni projede bağımlılık olarak eklenip iki satırla çağrılır.
@@ -33,7 +33,7 @@ dependencyResolutionManagement {
 
 ```kotlin
 dependencies {
-    implementation("com.github.aksufurkann:support-lib:1.0.3")
+    implementation("com.github.Furkanaksu:support-lib:1.0.3")
 }
 ```
 
