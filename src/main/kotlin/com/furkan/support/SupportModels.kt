@@ -15,6 +15,7 @@ data class SupportRequest(
     val longitude: Double? = null
 )
 
+/** Listelerde donen ozet. Cevaplarin kendisi degil, sayisi yer alir. */
 @Serializable
 data class SupportResponse(
     val id: Int,
@@ -24,7 +25,48 @@ data class SupportResponse(
     val location: String?,
     val latitude: Double?,
     val longitude: Double?,
+    val status: SupportStatus,
+    val replyCount: Int,
+    val createdDate: String,
+    val updatedDate: String? = null
+)
+
+/** Tek kayit ucunda donen detay: talep + tum cevaplar. */
+@Serializable
+data class SupportDetailResponse(
+    val id: Int,
+    val deviceId: String,
+    val email: String,
+    val description: String,
+    val location: String?,
+    val latitude: Double?,
+    val longitude: Double?,
+    val status: SupportStatus,
+    val createdDate: String,
+    val updatedDate: String? = null,
+    val replies: List<SupportReplyResponse>
+)
+
+@Serializable
+data class SupportReplyResponse(
+    val id: Int,
+    val supportId: Int,
+    val message: String,
+    val author: SupportAuthor,
     val createdDate: String
+)
+
+/** Cevap yazma govdesi. author verilmezse STAFF kabul edilir. */
+@Serializable
+data class SupportReplyRequest(
+    val message: String? = null,
+    val author: String? = null
+)
+
+/** Durum degistirme govdesi: OPEN | ANSWERED | CLOSED. */
+@Serializable
+data class SupportStatusRequest(
+    val status: String? = null
 )
 
 @Serializable

@@ -33,7 +33,7 @@ dependencyResolutionManagement {
 
 ```kotlin
 dependencies {
-    implementation("com.github.Furkanaksu:support-lib:1.0.3")
+    implementation("com.github.Furkanaksu:support-lib:1.1.0")
 }
 ```
 
@@ -76,12 +76,15 @@ SupportConfig(database = db, requireAuth = true, authName = "auth-jwt")
 
 | Metot | Yol | Açıklama |
 | --- | --- | --- |
-| GET | `{basePath}` | Sayfalı liste — `page`, `size`, `email`, `deviceId` |
-| GET | `{basePath}/{id}` | Tek kayıt |
-| POST | `{basePath}` | Yeni kayıt — `deviceId`, `email`, `description` zorunlu |
-| DELETE | `{basePath}/{id}` | Kayıt sil |
+| GET | `{basePath}` | Sayfalı liste — `page`, `size`, `email`, `deviceId`, `status` |
+| POST | `{basePath}` | Yeni talep — `deviceId`, `email`, `description` zorunlu |
+| GET | `{basePath}/device/{deviceId}` | Kullanıcının kendi talepleri — durum ve cevap sayısıyla |
+| GET | `{basePath}/{id}` | Detay: talep + tüm cevaplar |
+| POST | `{basePath}/{id}/replies` | Cevap yaz — `message` zorunlu, `author` opsiyonel |
+| PATCH | `{basePath}/{id}/status` | Durum değiştir — `OPEN`, `ANSWERED`, `CLOSED` |
+| DELETE | `{basePath}/{id}` | Talebi sil (cevapları da silinir) |
 
-`POST` gövdesi:
+`POST {basePath}` gövdesi:
 
 ```json
 {
@@ -94,11 +97,64 @@ SupportConfig(database = db, requireAuth = true, authName = "auth-jwt")
 }
 ```
 
+Koordinatlar hem sayı hem tırnaklı string kabul edilir (`41.0` veya `"41.0"`), böylece
+gövdeyi string map olarak gönderen eski istemciler de çalışır.
+
+## Durumlar ve cevaplama
+
+Her talebin bir durumu vardır ve durum cevaplarla birlikte otomatik ilerler:
+
+| Durum | Anlamı |
+| --- | --- |
+| `OPEN` | Yeni açıldı ya da son sözü kullanıcı söyledi — ekip cevabı bekleniyor |
+| `ANSWERED` | Son cevabı destek ekibi yazdı |
+| `CLOSED` | Kapatıldı (sadece `PATCH .../status` ile) |
+
+```mermaid
+flowchart LR
+  OPEN -->|STAFF cevap yazar| ANSWERED
+  ANSWERED -->|USER cevap yazar| OPEN
+  OPEN -->|PATCH status| CLOSED
+  ANSWERED -->|PATCH status| CLOSED
+  CLOSED -->|PATCH status| OPEN
+```
+
+Cevap gövdesi — `author` verilmezse `STAFF` kabul edilir:
+
+```json
+{ "message": "Konuyu inceledik, güncellemede düzeltilecek.", "author": "STAFF" }
+```
+
+`GET {basePath}/{id}` cevabı, talebin tüm yazışmasını zaman sırasıyla döner:
+
+```json
+{
+  "id": 12,
+  "deviceId": "device-1",
+  "status": "ANSWERED",
+  "description": "Uygulamada hata alıyorum",
+  "createdDate": "2026-09-20T12:00:00",
+  "updatedDate": "2026-09-20T12:30:00",
+  "replies": [
+    { "id": 3, "supportId": 12, "message": "Konuyu inceledik.", "author": "STAFF", "createdDate": "2026-09-20T12:30:00" }
+  ]
+}
+```
+
+`GET {basePath}/device/{deviceId}` kullanıcının kendi taleplerini döner — `deviceId` tam eşleşir,
+her satırda `status` ve `replyCount` bulunur, `?status=OPEN` ile filtrelenebilir.
+
+## Tablolar
+
+Kütüphane iki tablo kullanır: `tableName` (talepler) ve `replyTableName` (cevaplar, varsayılan
+`<tableName>_replies`). Cevap tablosu talebe `ON DELETE CASCADE` ile bağlıdır.
+`migrate()` ikisini de oluşturur; var olan tabloya eksik kolonları ekler.
+
 ## Yayınlama (JitPack)
 
 ```bash
-git tag 1.0.3
-git push origin 1.0.3
+git tag 1.1.0
+git push origin 1.1.0
 ```
 
 Tag atıldıktan sonra JitPack ilk istekte derler. JDK 21 için repo kökündeki `jitpack.yml` kullanılır.

@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.furkan"
-version = "1.0.3"
+version = "1.1.0"
 
 kotlin {
     jvmToolchain(21)
