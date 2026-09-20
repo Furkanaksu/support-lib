@@ -8,7 +8,10 @@ data class SupportRequest(
     val email: String? = null,
     val description: String? = null,
     val location: String? = null,
+    // Eski istemciler bu alanlari tirnakli gonderebiliyor: "41.0"
+    @Serializable(with = LenientDoubleSerializer::class)
     val latitude: Double? = null,
+    @Serializable(with = LenientDoubleSerializer::class)
     val longitude: Double? = null
 )
 
