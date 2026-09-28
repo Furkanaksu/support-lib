@@ -102,6 +102,13 @@ class SupportController(
         )
 
         if (created != null) {
+            // Projeye ozel yan etki (orn. admin e-postasi). Hatasi talebi bozmaz:
+            // kayit zaten atildi, istemciye 201 donmeli.
+            try {
+                config.onCreate(created)
+            } catch (e: Exception) {
+                println("[support-lib] onCreate hata verdi: ${e.message}")
+            }
             call.respond(HttpStatusCode.Created, created)
         } else {
             call.respond(

@@ -33,7 +33,7 @@ dependencyResolutionManagement {
 
 ```kotlin
 dependencies {
-    implementation("com.github.Furkanaksu:support-lib:1.1.0")
+    implementation("com.github.Furkanaksu:support-lib:1.2.0")
 }
 ```
 
@@ -63,6 +63,25 @@ fun Application.module() {
     }
 }
 ```
+
+### Yeni talepte yan etki (`onCreate`)
+
+Kütüphane e-posta, Slack ya da log bilmez — ama yeni talep geldiğinde haber verir:
+
+```kotlin
+SupportConfig(
+    database = db,
+    tableName = "prayapp_support",
+    onCreate = { talep ->
+        // admin'e e-posta, Slack bildirimi, loglama...
+        // Uzun süren işi kendi kapsamında başlat; kütüphane sonucu beklemez.
+    }
+)
+```
+
+Kayıt atıldıktan **sonra**, cevap dönmeden hemen önce çağrılır. Fırlattığı hata isteği
+bozmaz: talep zaten kaydedilmiştir, istemciye yine `201` döner. Geçersiz istekte
+(eksik alan) hiç çağrılmaz.
 
 Auth istenirse, projenin kendi Authentication kurulumu kullanılır:
 
@@ -153,9 +172,16 @@ Kütüphane iki tablo kullanır: `tableName` (talepler) ve `replyTableName` (cev
 ## Yayınlama (JitPack)
 
 ```bash
-git tag 1.1.0
-git push origin 1.1.0
+git tag 1.2.0
+git push origin 1.2.0
 ```
+
+## Sürüm notu
+
+`1.2.0` `SupportConfig.onCreate` kancasını ekledi: yeni talep oluşunca projeye haber verir
+(admin e-postası, bildirim, log). Varsayılanı boş, kırıcı değişiklik yok.
+
+`1.1.0` cevap yazma, durum akışı (OPEN → ANSWERED → CLOSED) ve cihaza göre listelemeyi ekledi.
 
 Tag atıldıktan sonra JitPack ilk istekte derler. JDK 21 için repo kökündeki `jitpack.yml` kullanılır.
 

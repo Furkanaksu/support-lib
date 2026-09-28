@@ -15,6 +15,9 @@ import org.jetbrains.exposed.sql.Database
  * @param authName       Ktor Authentication provider adi. null ise varsayilan provider kullanilir.
  * @param defaultPageSize Sayfa boyutu verilmezse kullanilacak deger.
  * @param maxPageSize    Istemcinin isteyebilecegi en buyuk sayfa boyutu.
+ * @param onCreate       Yeni talep olusunca cagrilir. Projeye ozel yan etkiler icindir
+ *                       (admin e-postasi, Slack bildirimi, log). Kutuphane sonucu beklemez
+ *                       ve firlattigi hata istegi bozmaz: talep yine 201 doner.
  */
 data class SupportConfig(
     val database: Database,
@@ -24,7 +27,8 @@ data class SupportConfig(
     val requireAuth: Boolean = false,
     val authName: String? = null,
     val defaultPageSize: Int = 20,
-    val maxPageSize: Int = 100
+    val maxPageSize: Int = 100,
+    val onCreate: (SupportResponse) -> Unit = { }
 ) {
     /** Bu config'e ait tablo tanimlari. Tablo adlari config'ten geldigi icin object degil, instance. */
     val table: SupportTable by lazy { SupportTable(tableName) }
