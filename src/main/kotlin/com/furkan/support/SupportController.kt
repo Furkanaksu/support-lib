@@ -1,7 +1,9 @@
 package com.furkan.support
 
+import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
+import io.ktor.server.request.contentType
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 
@@ -68,11 +70,34 @@ class SupportController(
     }
 
     suspend fun createSupport(call: ApplicationCall) {
-        val request = try {
-            call.receive<SupportRequest>()
-        } catch (e: Exception) {
-            call.respond(HttpStatusCode.BadRequest, SupportErrorResponse(error = INVALID_BODY))
-            return
+        // Iki govde sekli desteklenir: duz JSON (eski istemciler) ve multipart/form-data
+        // (fotograf eklemek isteyenler). Multipart'ta alan adlari JSON'dakiyle aynidir.
+        val multipart = call.request.contentType().match(ContentType.MultiPart.FormData)
+
+        var photoBytes: ByteArray? = null
+        var photoFileName: String? = null
+        var photoContentType: String? = null
+
+        val request = if (multipart) {
+            when (val sonuc = call.multipartTalepOku(config)) {
+                is MultipartSonuc.Hata -> {
+                    call.multipartHatasiDon(sonuc.hata)
+                    return
+                }
+                is MultipartSonuc.Ok -> {
+                    photoBytes = sonuc.talep.photoBytes
+                    photoFileName = sonuc.talep.photoFileName
+                    photoContentType = sonuc.talep.photoContentType
+                    sonuc.talep.request
+                }
+            }
+        } else {
+            try {
+                call.receive<SupportRequest>()
+            } catch (e: Exception) {
+                call.respond(HttpStatusCode.BadRequest, SupportErrorResponse(error = INVALID_BODY))
+                return
+            }
         }
 
         val deviceId = request.deviceId
@@ -92,13 +117,34 @@ class SupportController(
             return
         }
 
+        // Yukleme dogrulamadan SONRA yapilir: gecersiz istek icin depoya bosuna gidilmez.
+        val photoUrl = if (photoBytes != null && photoContentType != null) {
+            val depo = config.photoStorage
+            if (depo == null) {
+                call.multipartHatasiDon(MultipartHata.FotografKapali)
+                return
+            }
+            try {
+                depo.upload(photoBytes, fotografAdiUret(photoFileName, photoContentType), photoContentType)
+            } catch (e: Exception) {
+                call.respond(
+                    HttpStatusCode.ServiceUnavailable,
+                    SupportErrorResponse(error = "Fotograf yuklenemedi, talebi fotografsiz gonderebilirsiniz")
+                )
+                return
+            }
+        } else {
+            request.photoUrl?.trim()?.takeIf { it.isNotEmpty() }
+        }
+
         val created = service.createSupport(
             deviceId = deviceId,
             email = email,
             description = description,
             location = request.location,
             latitude = request.latitude,
-            longitude = request.longitude
+            longitude = request.longitude,
+            photoUrl = photoUrl
         )
 
         if (created != null) {
@@ -220,5 +266,31 @@ class SupportController(
         const val INVALID_BODY = "Gecersiz istek govdesi"
         const val INVALID_STATUS = "Gecersiz status. Gecerli degerler: OPEN, ANSWERED, CLOSED"
         const val INVALID_AUTHOR = "Gecersiz author. Gecerli degerler: USER, STAFF"
+    }
+
+    /** Multipart okuma hatalarini istemciye anlamli HTTP koduyla dondurur. */
+    private suspend fun ApplicationCall.multipartHatasiDon(hata: MultipartHata) = when (hata) {
+        is MultipartHata.CokBuyuk -> respond(
+            HttpStatusCode.PayloadTooLarge,
+            SupportErrorResponse(error = "Fotograf en fazla ${hata.limit / 1024 / 1024} MB olabilir")
+        )
+
+        is MultipartHata.DesteklenmeyenTur -> respond(
+            HttpStatusCode.UnsupportedMediaType,
+            SupportErrorResponse(
+                error = "Desteklenmeyen dosya turu${hata.gelen?.let { " ($it)" } ?: ""}. " +
+                    "Kabul edilenler: ${config.allowedPhotoTypes.joinToString(", ")}"
+            )
+        )
+
+        MultipartHata.FotografKapali -> respond(
+            HttpStatusCode.BadRequest,
+            SupportErrorResponse(error = "Bu sunucuda fotograf yukleme kapali")
+        )
+
+        MultipartHata.Bozuk -> respond(
+            HttpStatusCode.BadRequest,
+            SupportErrorResponse(error = INVALID_BODY)
+        )
     }
 }

@@ -26,9 +26,10 @@ class SupportService(private val repository: SupportRepository) {
         description: String,
         location: String?,
         latitude: Double?,
-        longitude: Double?
+        longitude: Double?,
+        photoUrl: String? = null
     ): SupportResponse? = try {
-        repository.create(deviceId, email, description, location, latitude, longitude)
+        repository.create(deviceId, email, description, location, latitude, longitude, photoUrl)
     } catch (e: Exception) {
         null
     }

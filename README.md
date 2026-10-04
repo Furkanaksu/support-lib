@@ -33,7 +33,7 @@ dependencyResolutionManagement {
 
 ```kotlin
 dependencies {
-    implementation("com.github.Furkanaksu:support-lib:1.2.0")
+    implementation("com.github.Furkanaksu:support-lib:1.3.0")
 }
 ```
 
@@ -82,6 +82,50 @@ SupportConfig(
 Kayıt atıldıktan **sonra**, cevap dönmeden hemen önce çağrılır. Fırlattığı hata isteği
 bozmaz: talep zaten kaydedilmiştir, istemciye yine `201` döner. Geçersiz istekte
 (eksik alan) hiç çağrılmaz.
+
+### Fotoğraf (opsiyonel)
+
+Destek talebine fotoğraf eklenebilir. Kütüphane dosyayı **nereye koyacağını bilmez**;
+depoyu proje bağlar:
+
+```kotlin
+SupportConfig(
+    database = db,
+    photoStorage = SupportPhotoStorage { bytes, fileName, contentType ->
+        SupabaseStorageService.upload(fileName, bytes, contentType)   // adres döner
+    },
+    maxPhotoBytes = 5L * 1024 * 1024,                                  // varsayılan 5 MB
+    allowedPhotoTypes = setOf("image/jpeg", "image/png", "image/webp") // varsayılan
+)
+```
+
+`photoStorage` verilmezse özellik **kapalıdır**: fotoğraflı istek 400 alır.
+
+İstemci iki yoldan birini kullanır:
+
+**1. Dosyayı API'ye yükle** — `multipart/form-data`. Alan adları JSON'dakiyle aynı,
+fotoğraf `photo` parçasında:
+
+```
+POST /support
+Content-Type: multipart/form-data
+
+deviceId=a1b2c3
+email=ali@ornek.com
+description=Uygulama açılmıyor
+photo=<dosya>
+```
+
+**2. Kendi yükle, adresi gönder** — JSON gövdesine `photoUrl` ekle. Fotoğrafı kendi
+deposuna koyan istemciler için.
+
+Her iki durumda da cevapta `photoUrl` döner; liste ve detay uçlarında da görünür.
+Fotoğrafsız istekler eskisi gibi çalışır, `photoUrl` null gelir.
+
+Hata durumları: dosya çok büyükse **413**, tür desteklenmiyorsa **415**, depo
+yapılandırılmamışsa **400**, depo erişilemezse **503** (talep oluşturulmaz, kullanıcı
+fotoğrafsız tekrar deneyebilir). Üçünde de depoya gereksiz istek gitmez — doğrulama
+yüklemeden önce yapılır, boyut sınırı aşılınca dosya okunmaya devam edilmez.
 
 Auth istenirse, projenin kendi Authentication kurulumu kullanılır:
 
@@ -172,11 +216,16 @@ Kütüphane iki tablo kullanır: `tableName` (talepler) ve `replyTableName` (cev
 ## Yayınlama (JitPack)
 
 ```bash
-git tag 1.2.0
-git push origin 1.2.0
+git tag 1.3.0
+git push origin 1.3.0
 ```
 
 ## Sürüm notu
+
+`1.3.0` destek talebine opsiyonel fotoğraf ekledi: `SupportConfig.photoStorage`,
+`multipart/form-data` gövde desteği ve `photoUrl` alanı. Tabloya nullable `photo_url`
+kolonu eklenir (`migrate()` halleder). Kırıcı değişiklik yok; JSON gövdesi ve fotoğrafsız
+istekler aynen çalışır.
 
 `1.2.0` `SupportConfig.onCreate` kancasını ekledi: yeni talep oluşunca projeye haber verir
 (admin e-postası, bildirim, log). Varsayılanı boş, kırıcı değişiklik yok.

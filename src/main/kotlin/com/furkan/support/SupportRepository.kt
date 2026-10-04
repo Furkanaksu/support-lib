@@ -66,7 +66,8 @@ class SupportRepository(
         description: String,
         location: String?,
         latitude: Double?,
-        longitude: Double?
+        longitude: Double?,
+        photoUrl: String?
     ): SupportResponse = transaction(database) {
         val now = LocalDateTime.now()
         val inserted = table.insert {
@@ -76,6 +77,7 @@ class SupportRepository(
             it[this.location] = location
             it[this.latitude] = latitude
             it[this.longitude] = longitude
+            it[this.photoUrl] = photoUrl
             it[this.status] = SupportStatus.OPEN.name
             it[this.createdDate] = now
         }
@@ -88,6 +90,7 @@ class SupportRepository(
             location = location,
             latitude = latitude,
             longitude = longitude,
+            photoUrl = photoUrl,
             status = SupportStatus.OPEN,
             replyCount = 0,
             createdDate = now.toString(),

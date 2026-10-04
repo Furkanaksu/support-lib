@@ -12,7 +12,12 @@ data class SupportRequest(
     @Serializable(with = LenientDoubleSerializer::class)
     val latitude: Double? = null,
     @Serializable(with = LenientDoubleSerializer::class)
-    val longitude: Double? = null
+    val longitude: Double? = null,
+    /**
+     * Fotografi baska bir yere kendi yukleyen istemciler adresi burada gonderir.
+     * Fotografi API'ye yuklemek isteyenler multipart/form-data kullanir (bkz. README).
+     */
+    val photoUrl: String? = null
 )
 
 /** Listelerde donen ozet. Cevaplarin kendisi degil, sayisi yer alir. */
@@ -25,6 +30,7 @@ data class SupportResponse(
     val location: String?,
     val latitude: Double?,
     val longitude: Double?,
+    val photoUrl: String? = null,
     val status: SupportStatus,
     val replyCount: Int,
     val createdDate: String,
@@ -41,6 +47,7 @@ data class SupportDetailResponse(
     val location: String?,
     val latitude: Double?,
     val longitude: Double?,
+    val photoUrl: String? = null,
     val status: SupportStatus,
     val createdDate: String,
     val updatedDate: String? = null,

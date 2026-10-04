@@ -16,6 +16,8 @@ class SupportTable(tableName: String) : IntIdTable(tableName) {
     val location = varchar("location", 255).nullable()
     val latitude = double("latitude").nullable()
     val longitude = double("longitude").nullable()
+    /** Talebe eklenen fotografin adresi. Fotograf opsiyonel oldugu icin nullable. */
+    val photoUrl = varchar("photo_url", 1000).nullable()
     val status = varchar("status", 20).default(SupportStatus.OPEN.name).index()
     val createdDate = datetime("created_date").index()
     val updatedDate = datetime("updated_date").nullable().default(null)
