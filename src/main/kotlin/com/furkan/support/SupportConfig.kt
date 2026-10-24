@@ -8,10 +8,12 @@ import org.jetbrains.exposed.sql.Database
  * her tuketen proje kendi degerlerini verir.
  *
  * @param database       Projenin kendi Exposed [Database] objesi. Kutuphane asla connect() cagirmaz.
- * @param basePath       Route'larin monte edilecegi taban yol. Orn. "/support", "/api/v2/destek".
+ * @param basePath       Kullanici uclarinin taban yolu. Orn. "/support", "/api/v2/destek".
+ * @param adminBasePath  Destek ekibi uclarinin taban yolu ([supportAdminRoutes]). Varsayilan: "/admin<basePath>".
  * @param tableName      Talep tablosunun adi. Ayni DB'de birden fazla urun varsa cakismayi onler.
  * @param replyTableName Cevap tablosunun adi. Varsayilan: "<tableName>_replies".
- * @param requireAuth    true ise route'lar [authName] ile korunur; projenin Authentication kurulumu gerekir.
+ * @param requireAuth    true ise kullanici uclari [authName] ile korunur; projenin Authentication kurulumu
+ *                       gerekir. Admin uclarini proje kendi yetkisinin icine monte eder.
  * @param authName       Ktor Authentication provider adi. null ise varsayilan provider kullanilir.
  * @param defaultPageSize Sayfa boyutu verilmezse kullanilacak deger.
  * @param maxPageSize    Istemcinin isteyebilecegi en buyuk sayfa boyutu.
@@ -25,6 +27,7 @@ import org.jetbrains.exposed.sql.Database
 data class SupportConfig(
     val database: Database,
     val basePath: String = "/support",
+    val adminBasePath: String = "/admin$basePath",
     val tableName: String = "support_tickets",
     val replyTableName: String = "${tableName}_replies",
     val requireAuth: Boolean = false,
@@ -43,6 +46,8 @@ data class SupportConfig(
 
     init {
         require(basePath.startsWith("/")) { "basePath '/' ile baslamali: $basePath" }
+        require(adminBasePath.startsWith("/")) { "adminBasePath '/' ile baslamali: $adminBasePath" }
+        require(adminBasePath != basePath) { "adminBasePath, basePath ile ayni olamaz" }
         require(tableName.isNotBlank()) { "tableName bos olamaz" }
         require(replyTableName.isNotBlank()) { "replyTableName bos olamaz" }
         require(replyTableName != tableName) { "replyTableName, tableName ile ayni olamaz" }

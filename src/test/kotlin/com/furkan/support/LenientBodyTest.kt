@@ -28,7 +28,10 @@ class LenientBodyTest {
     private fun io.ktor.server.testing.ApplicationTestBuilder.setup(cfg: SupportConfig) {
         application {
             install(ContentNegotiation) { json() }
-            routing { supportRoutes(cfg) }
+            routing {
+                supportRoutes(cfg)
+                supportAdminRoutes(cfg)
+            }
         }
     }
 
@@ -81,6 +84,6 @@ class LenientBodyTest {
         }
         assertEquals(HttpStatusCode.Created, missing.status)
 
-        assertTrue(client.get("/support").bodyAsText().contains("\"totalItems\":2"))
+        assertTrue(client.get("/admin/support").bodyAsText().contains("\"totalItems\":2"))
     }
 }

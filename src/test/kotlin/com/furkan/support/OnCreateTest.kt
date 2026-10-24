@@ -38,7 +38,10 @@ class OnCreateTest {
     private fun ApplicationTestBuilder.setup(config: SupportConfig) {
         application {
             install(ContentNegotiation) { json() }
-            routing { supportRoutes(config) }
+            routing {
+                supportRoutes(config)
+                supportAdminRoutes(config)
+            }
         }
     }
 

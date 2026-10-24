@@ -9,46 +9,70 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 
 /**
- * Kutuphanenin tek giris noktasi.
+ * Kullanicinin uclari. Herkes yalnizca kendi cihazinin taleplerini gorur.
  *
  * ```
  * routing {
  *     supportRoutes(supportConfig)
+ *     authenticate("admin") { supportAdminRoutes(supportConfig) }
  * }
  * ```
  *
  * Uc noktalar (basePath'e gore):
- * - `GET    {basePath}`                    sayfali liste (page, size, email, deviceId, status)
- * - `POST   {basePath}`                    yeni talep (durum OPEN acilir)
- * - `GET    {basePath}/device/{deviceId}`  kullanicinin kendi talepleri (durum + cevap sayisi)
- * - `GET    {basePath}/{id}`               detay: talep + tum cevaplar
- * - `POST   {basePath}/{id}/replies`       cevap yaz (STAFF -> ANSWERED, USER -> OPEN)
- * - `PATCH  {basePath}/{id}/status`        durum degistir (OPEN | ANSWERED | CLOSED)
- * - `DELETE {basePath}/{id}`               talebi sil (cevaplari da silinir)
+ * - `POST   {basePath}`                                  yeni talep (durum OPEN acilir)
+ * - `GET    {basePath}/device/{deviceId}`                kendi talepleri (durum + son cevap)
+ * - `GET    {basePath}/device/{deviceId}/{id}`           kendi talebinin detayi + cevaplar
+ * - `POST   {basePath}/device/{deviceId}/{id}/replies`   kendi talebine cevap (USER -> OPEN)
+ *
+ * Talep baska cihaza aitse detay ve cevap uclari 404 doner; talebin varligi bile sizmaz.
  */
 fun Route.supportRoutes(config: SupportConfig) {
-    val controller = SupportController(
-        service = SupportService(SupportRepository(config.database, config.table, config.replyTable)),
-        config = config
-    )
+    val controller = controllerOf(config)
 
     route(config.basePath) {
         if (config.requireAuth) {
             authenticate(config.authName) {
-                supportEndpoints(controller)
+                userEndpoints(controller)
             }
         } else {
-            supportEndpoints(controller)
+            userEndpoints(controller)
         }
     }
 }
 
-private fun Route.supportEndpoints(controller: SupportController) {
-    get { controller.getAllSupports(call) }
+/**
+ * Destek ekibinin uclari: herkesin taleplerini okur, cevaplar, kapatir, siler.
+ *
+ * Kutuphane bu uclari KORUMAZ; proje kendi yetkisinin icine monte eder:
+ * `authenticate(ADMIN_AUTH) { supportAdminRoutes(config) }`.
+ *
+ * Uc noktalar (adminBasePath'e gore):
+ * - `GET    {adminBasePath}`               sayfali liste (page, size, email, deviceId, status)
+ * - `GET    {adminBasePath}/{id}`          detay: talep + tum cevaplar
+ * - `POST   {adminBasePath}/{id}/replies`  ekip cevabi (STAFF -> ANSWERED)
+ * - `PATCH  {adminBasePath}/{id}/status`   durum degistir (OPEN | ANSWERED | CLOSED)
+ * - `DELETE {adminBasePath}/{id}`          talebi sil (cevaplari da silinir)
+ */
+fun Route.supportAdminRoutes(config: SupportConfig) {
+    val controller = controllerOf(config)
+
+    route(config.adminBasePath) {
+        get { controller.getAllSupports(call) }
+        get("/{id}") { controller.getSupportById(call) }
+        post("/{id}/replies") { controller.addReply(call, SupportAuthor.STAFF) }
+        patch("/{id}/status") { controller.updateStatus(call) }
+        delete("/{id}") { controller.deleteSupport(call) }
+    }
+}
+
+private fun controllerOf(config: SupportConfig) = SupportController(
+    service = SupportService(SupportRepository(config.database, config.table, config.replyTable)),
+    config = config
+)
+
+private fun Route.userEndpoints(controller: SupportController) {
     post { controller.createSupport(call) }
     get("/device/{deviceId}") { controller.getSupportsByDevice(call) }
-    get("/{id}") { controller.getSupportById(call) }
-    post("/{id}/replies") { controller.addReply(call) }
-    patch("/{id}/status") { controller.updateStatus(call) }
-    delete("/{id}") { controller.deleteSupport(call) }
+    get("/device/{deviceId}/{id}") { controller.getSupportById(call) }
+    post("/device/{deviceId}/{id}/replies") { controller.addReply(call, SupportAuthor.USER) }
 }

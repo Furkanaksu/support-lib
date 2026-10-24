@@ -20,7 +20,11 @@ data class SupportRequest(
     val photoUrl: String? = null
 )
 
-/** Listelerde donen ozet. Cevaplarin kendisi degil, sayisi yer alir. */
+/**
+ * Listelerde donen ozet. Cevaplarin kendisi degil, sayisi ve son cevabin bilgisi yer alir.
+ * Istemci "yeni cevap var mi" sorusunu [lastReplyAuthor] + [lastReplyDate] ile yanitlar:
+ * son cevap STAFF'tan ve daha once gorulen tarihten farkliysa okunmamistir.
+ */
 @Serializable
 data class SupportResponse(
     val id: Int,
@@ -34,7 +38,9 @@ data class SupportResponse(
     val status: SupportStatus,
     val replyCount: Int,
     val createdDate: String,
-    val updatedDate: String? = null
+    val updatedDate: String? = null,
+    val lastReplyAuthor: SupportAuthor? = null,
+    val lastReplyDate: String? = null
 )
 
 /** Tek kayit ucunda donen detay: talep + tum cevaplar. */
@@ -63,11 +69,10 @@ data class SupportReplyResponse(
     val createdDate: String
 )
 
-/** Cevap yazma govdesi. author verilmezse STAFF kabul edilir. */
+/** Cevap yazma govdesi. Yazari uc belirler (admin ucu STAFF, kullanici ucu USER). */
 @Serializable
 data class SupportReplyRequest(
-    val message: String? = null,
-    val author: String? = null
+    val message: String? = null
 )
 
 /** Durum degistirme govdesi: OPEN | ANSWERED | CLOSED. */

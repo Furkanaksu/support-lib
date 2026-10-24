@@ -60,7 +60,10 @@ class PhotoTest {
     private fun ApplicationTestBuilder.setup(config: SupportConfig) {
         application {
             install(ContentNegotiation) { json() }
-            routing { supportRoutes(config) }
+            routing {
+                supportRoutes(config)
+                supportAdminRoutes(config)
+            }
         }
     }
 
@@ -240,13 +243,13 @@ class PhotoTest {
         setup(cfg)
         val id = fotografli().decode<SupportResponse>().id
 
-        val detay = client.post("/support/$id/replies") {
+        val detay = client.post("/admin/support/$id/replies") {
             contentType(ContentType.Application.Json)
-            setBody("""{"message":"Bakiyoruz","author":"STAFF"}""")
+            setBody("""{"message":"Bakiyoruz"}""")
         }
         assertEquals(HttpStatusCode.Created, detay.status)
 
-        val kayit = client.get("/support/$id").decode<SupportDetailResponse>()
+        val kayit = client.get("/admin/support/$id").decode<SupportDetailResponse>()
         assertTrue(kayit.photoUrl!!.startsWith("https://depo.ornek.com/"), kayit.photoUrl!!)
     }
 }

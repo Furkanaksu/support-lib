@@ -53,7 +53,10 @@ class SupportController(
         call.respond(paginate(items, total, page, size))
     }
 
-    /** Detay: talep + tum cevaplar. */
+    /**
+     * Detay: talep + tum cevaplar. Yolda deviceId varsa (kullanici ucu) talep o cihaza
+     * ait olmalidir; degilse 404 doner.
+     */
     suspend fun getSupportById(call: ApplicationCall) {
         val id = call.parameters["id"]?.toIntOrNull()
         if (id == null) {
@@ -61,7 +64,8 @@ class SupportController(
             return
         }
 
-        val detail = service.getSupportDetail(id)
+        val deviceId = call.parameters["deviceId"]
+        val detail = service.getSupportDetail(id)?.takeIf { deviceId == null || it.deviceId == deviceId }
         if (detail == null) {
             call.respond(HttpStatusCode.NotFound, SupportErrorResponse(error = NOT_FOUND))
         } else {
@@ -164,8 +168,11 @@ class SupportController(
         }
     }
 
-    /** Talebe cevap yazar; author verilmezse STAFF kabul edilir ve durum ANSWERED olur. */
-    suspend fun addReply(call: ApplicationCall) {
+    /**
+     * Talebe cevap yazar. Yazari istemci degil uc belirler: admin ucu STAFF (durum ANSWERED),
+     * kullanici ucu USER (durum OPEN). Kullanici ucunda talep yoldaki cihaza ait olmalidir.
+     */
+    suspend fun addReply(call: ApplicationCall, author: SupportAuthor) {
         val id = call.parameters["id"]?.toIntOrNull()
         if (id == null) {
             call.respond(HttpStatusCode.BadRequest, SupportErrorResponse(error = "Gecersiz id"))
@@ -179,18 +186,15 @@ class SupportController(
             return
         }
 
-        val message = request.message
-        if (message.isNullOrBlank()) {
+        val message = request.message?.trim()
+        if (message.isNullOrEmpty()) {
             call.respond(HttpStatusCode.BadRequest, SupportErrorResponse(error = "message bos olamaz"))
             return
         }
 
-        val author = when {
-            request.author == null -> SupportAuthor.STAFF
-            else -> SupportAuthor.fromOrNull(request.author)
-        }
-        if (author == null) {
-            call.respond(HttpStatusCode.BadRequest, SupportErrorResponse(error = INVALID_AUTHOR))
+        val deviceId = call.parameters["deviceId"]
+        if (deviceId != null && service.getOwnerDeviceId(id) != deviceId) {
+            call.respond(HttpStatusCode.NotFound, SupportErrorResponse(error = NOT_FOUND))
             return
         }
 
@@ -265,7 +269,6 @@ class SupportController(
         const val NOT_FOUND = "Kayit bulunamadi"
         const val INVALID_BODY = "Gecersiz istek govdesi"
         const val INVALID_STATUS = "Gecersiz status. Gecerli degerler: OPEN, ANSWERED, CLOSED"
-        const val INVALID_AUTHOR = "Gecersiz author. Gecerli degerler: USER, STAFF"
     }
 
     /** Multipart okuma hatalarini istemciye anlamli HTTP koduyla dondurur. */

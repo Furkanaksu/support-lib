@@ -3,6 +3,7 @@ package com.furkan.support
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.Op
+import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.SqlExpressionBuilder
 import org.jetbrains.exposed.sql.and
@@ -45,10 +46,7 @@ class SupportRepository(
             .limit(size).offset(((page - 1).coerceAtLeast(0).toLong()) * size)
             .toList()
 
-        val counts = replyCounts(rows.map { it[table.id].value })
-        val items = rows.map { it.toSupportResponse(table, counts[it[table.id].value] ?: 0) }
-
-        items to total
+        rows.toSupportResponses() to total
     }
 
     fun findDetail(id: Int): SupportDetailResponse? = transaction(database) {
@@ -58,6 +56,14 @@ class SupportRepository(
             .firstOrNull() ?: return@transaction null
 
         row.toSupportDetailResponse(table, repliesOf(id))
+    }
+
+    fun findDeviceId(id: Int): String? = transaction(database) {
+        table.select(table.deviceId)
+            .where { table.id eq id }
+            .limit(1)
+            .firstOrNull()
+            ?.get(table.deviceId)
     }
 
     fun create(
@@ -186,8 +192,7 @@ class SupportRepository(
             .limit(size).offset(((page - 1).coerceAtLeast(0).toLong()) * size)
             .toList()
 
-        val counts = replyCounts(rows.map { it[table.id].value })
-        rows.map { it.toSupportResponse(table, counts[it[table.id].value] ?: 0) } to total
+        rows.toSupportResponses() to total
     }
 
     private fun repliesOf(supportId: Int): List<SupportReplyResponse> =
@@ -195,6 +200,31 @@ class SupportRepository(
             .where { replyTable.supportId eq EntityID(supportId, table) }
             .orderBy(replyTable.createdDate, SortOrder.ASC)
             .map { it.toSupportReplyResponse(replyTable) }
+
+    /** Sayfadaki talepleri cevap sayisi ve son cevapla birlikte dondurur; N+1 yok. */
+    private fun List<ResultRow>.toSupportResponses(): List<SupportResponse> {
+        val ids = map { it[table.id].value }
+        val counts = replyCounts(ids)
+        val lastReplies = lastReplies(ids)
+        return map {
+            val id = it[table.id].value
+            it.toSupportResponse(table, counts[id] ?: 0, lastReplies[id])
+        }
+    }
+
+    /**
+     * Her talebin en son cevabi. Talep basina cevap sayisi az oldugu icin sayfadaki cevaplarin
+     * hepsini artan sirayla cekip sonuncuyu tutuyoruz; her veritabaninda calisan tek sorgu.
+     */
+    private fun lastReplies(ids: List<Int>): Map<Int, SupportReplyResponse> {
+        if (ids.isEmpty()) return emptyMap()
+        val entityIds = ids.map { EntityID(it, table) }
+        return replyTable.selectAll()
+            .where { replyTable.supportId inList entityIds }
+            .orderBy(replyTable.createdDate to SortOrder.ASC, replyTable.id to SortOrder.ASC)
+            .map { it.toSupportReplyResponse(replyTable) }
+            .associateBy { it.supportId }
+    }
 
     /** Sayfadaki tum talepler icin cevap sayilarini tek sorguda toplar (N+1 yok). */
     private fun replyCounts(ids: List<Int>): Map<Int, Int> {

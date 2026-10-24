@@ -30,7 +30,10 @@ class SupportRoutesTest {
         val cfg = config("/support", "db1")
         application {
             install(ContentNegotiation) { json() }
-            routing { supportRoutes(cfg) }
+            routing {
+                supportRoutes(cfg)
+                supportAdminRoutes(cfg)
+            }
         }
 
         val created = client.post("/support") {
@@ -39,7 +42,7 @@ class SupportRoutesTest {
         }
         assertEquals(HttpStatusCode.Created, created.status)
 
-        val list = client.get("/support?page=1&size=10")
+        val list = client.get("/admin/support?page=1&size=10")
         assertEquals(HttpStatusCode.OK, list.status)
         assertTrue(list.bodyAsText().contains("device-1"))
     }
@@ -49,11 +52,15 @@ class SupportRoutesTest {
         val cfg = config("/api/v2/destek", "db2")
         application {
             install(ContentNegotiation) { json() }
-            routing { supportRoutes(cfg) }
+            routing {
+                supportRoutes(cfg)
+                supportAdminRoutes(cfg)
+            }
         }
 
-        assertEquals(HttpStatusCode.OK, client.get("/api/v2/destek").status)
-        assertEquals(HttpStatusCode.NotFound, client.get("/support").status)
+        assertEquals(HttpStatusCode.OK, client.get("/api/v2/destek/device/x").status)
+        assertEquals(HttpStatusCode.OK, client.get("/admin/api/v2/destek").status)
+        assertEquals(HttpStatusCode.NotFound, client.get("/support/device/x").status)
     }
 
     @Test
@@ -61,7 +68,10 @@ class SupportRoutesTest {
         val cfg = config("/support", "db3")
         application {
             install(ContentNegotiation) { json() }
-            routing { supportRoutes(cfg) }
+            routing {
+                supportRoutes(cfg)
+                supportAdminRoutes(cfg)
+            }
         }
 
         val response = client.post("/support") {

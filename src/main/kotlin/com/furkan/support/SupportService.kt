@@ -20,6 +20,9 @@ class SupportService(private val repository: SupportRepository) {
 
     fun getSupportDetail(id: Int): SupportDetailResponse? = repository.findDetail(id)
 
+    /** Talebi acan cihaz; talep yoksa null. */
+    fun getOwnerDeviceId(id: Int): String? = repository.findDeviceId(id)
+
     fun createSupport(
         deviceId: String,
         email: String,

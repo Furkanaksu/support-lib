@@ -40,7 +40,10 @@ class UsabilityCheckTest {
         val cfg = config("u1")
         application {
             install(ContentNegotiation) { json() }
-            routing { supportRoutes(cfg) }
+            routing {
+                supportRoutes(cfg)
+                supportAdminRoutes(cfg)
+            }
         }
 
         client.post("/support") {
@@ -48,11 +51,11 @@ class UsabilityCheckTest {
             setBody("""{"deviceId":"d1","email":"a@b.com","description":"x"}""")
         }
 
-        assertEquals(HttpStatusCode.OK, client.get("/support/1").status)
-        assertEquals(HttpStatusCode.NotFound, client.get("/support/999").status)
-        assertEquals(HttpStatusCode.BadRequest, client.get("/support/abc").status)
-        assertEquals(HttpStatusCode.NoContent, client.delete("/support/1").status)
-        assertEquals(HttpStatusCode.NotFound, client.delete("/support/1").status)
+        assertEquals(HttpStatusCode.OK, client.get("/admin/support/1").status)
+        assertEquals(HttpStatusCode.NotFound, client.get("/admin/support/999").status)
+        assertEquals(HttpStatusCode.BadRequest, client.get("/admin/support/abc").status)
+        assertEquals(HttpStatusCode.NoContent, client.delete("/admin/support/1").status)
+        assertEquals(HttpStatusCode.NotFound, client.delete("/admin/support/1").status)
     }
 
     @Test
@@ -60,7 +63,10 @@ class UsabilityCheckTest {
         val cfg = config("u2")
         application {
             install(ContentNegotiation) { json() }
-            routing { supportRoutes(cfg) }
+            routing {
+                supportRoutes(cfg)
+                supportAdminRoutes(cfg)
+            }
         }
 
         client.post("/support") {
@@ -72,12 +78,12 @@ class UsabilityCheckTest {
             setBody("""{"deviceId":"ios-2","email":"veli@y.com","description":"y"}""")
         }
 
-        val filtered = client.get("/support?email=ALI").bodyAsText()
+        val filtered = client.get("/admin/support?email=ALI").bodyAsText()
         assertTrue(filtered.contains("ali@x.com"), "buyuk-kucuk harf duyarsiz filtre calismali")
         assertFalse(filtered.contains("veli@y.com"))
         assertTrue(filtered.contains("\"totalItems\":1"), "totalItems filtreye gore hesaplanmali: $filtered")
 
-        val byDevice = client.get("/support?deviceId=ios").bodyAsText()
+        val byDevice = client.get("/admin/support?deviceId=ios").bodyAsText()
         assertTrue(byDevice.contains("ios-2"))
         assertFalse(byDevice.contains("android-1"))
     }
@@ -87,10 +93,13 @@ class UsabilityCheckTest {
         val cfg = config("u3")
         application {
             install(ContentNegotiation) { json() }
-            routing { supportRoutes(cfg) }
+            routing {
+                supportRoutes(cfg)
+                supportAdminRoutes(cfg)
+            }
         }
 
-        val body = client.get("/support?size=5000&page=0").bodyAsText()
+        val body = client.get("/admin/support?size=5000&page=0").bodyAsText()
         assertTrue(body.contains("\"size\":100"), "size maxPageSize'a kirpilmali: $body")
         assertTrue(body.contains("\"page\":1"), "page en az 1 olmali: $body")
     }
@@ -108,7 +117,7 @@ class UsabilityCheckTest {
             routing { supportRoutes(cfg) }
         }
 
-        assertEquals(HttpStatusCode.Unauthorized, client.get("/support").status)
-        assertEquals(HttpStatusCode.Unauthorized, client.delete("/support/1").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/support/device/d1").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.post("/support").status)
     }
 }

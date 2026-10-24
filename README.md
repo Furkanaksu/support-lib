@@ -33,7 +33,7 @@ dependencyResolutionManagement {
 
 ```kotlin
 dependencies {
-    implementation("com.github.Furkanaksu:support-lib:1.3.0")
+    implementation("com.github.Furkanaksu:support-lib:2.0.0")
 }
 ```
 
@@ -59,7 +59,10 @@ fun Application.module() {
     install(ContentNegotiation) { json() }   // tüketen projenin sorumluluğu
 
     routing {
-        supportRoutes(supportConfig)     // hazır
+        supportRoutes(supportConfig)     // kullanıcı uçları
+        authenticate("admin") {          // ekip uçlarını proje kendi yetkisiyle korur
+            supportAdminRoutes(supportConfig)
+        }
     }
 }
 ```
@@ -127,7 +130,7 @@ yapılandırılmamışsa **400**, depo erişilemezse **503** (talep oluşturulma
 fotoğrafsız tekrar deneyebilir). Üçünde de depoya gereksiz istek gitmez — doğrulama
 yüklemeden önce yapılır, boyut sınırı aşılınca dosya okunmaya devam edilmez.
 
-Auth istenirse, projenin kendi Authentication kurulumu kullanılır:
+Kullanıcı uçlarına da auth istenirse, projenin kendi Authentication kurulumu kullanılır:
 
 ```kotlin
 SupportConfig(database = db, requireAuth = true, authName = "auth-jwt")
@@ -135,17 +138,28 @@ SupportConfig(database = db, requireAuth = true, authName = "auth-jwt")
 
 ## Uç noktalar
 
-`basePath` varsayılanı `/support`:
+İki ayrı grup var. **Kullanıcı uçları** (`supportRoutes`, `basePath` varsayılanı `/support`) —
+herkes yalnızca kendi cihazının taleplerini görür:
 
 | Metot | Yol | Açıklama |
 | --- | --- | --- |
-| GET | `{basePath}` | Sayfalı liste — `page`, `size`, `email`, `deviceId`, `status` |
 | POST | `{basePath}` | Yeni talep — `deviceId`, `email`, `description` zorunlu |
-| GET | `{basePath}/device/{deviceId}` | Kullanıcının kendi talepleri — durum ve cevap sayısıyla |
-| GET | `{basePath}/{id}` | Detay: talep + tüm cevaplar |
-| POST | `{basePath}/{id}/replies` | Cevap yaz — `message` zorunlu, `author` opsiyonel |
-| PATCH | `{basePath}/{id}/status` | Durum değiştir — `OPEN`, `ANSWERED`, `CLOSED` |
-| DELETE | `{basePath}/{id}` | Talebi sil (cevapları da silinir) |
+| GET | `{basePath}/device/{deviceId}` | Kendi talepleri — durum, cevap sayısı, son cevap |
+| GET | `{basePath}/device/{deviceId}/{id}` | Kendi talebinin detayı + tüm cevaplar |
+| POST | `{basePath}/device/{deviceId}/{id}/replies` | Kendi talebine cevap (`USER`) — `message` zorunlu |
+
+Talep başka cihaza aitse detay ve cevap uçları `404` döner.
+
+**Ekip uçları** (`supportAdminRoutes`, `adminBasePath` varsayılanı `/admin{basePath}`) —
+kütüphane bunları korumaz, proje kendi yetkisinin içine monte eder:
+
+| Metot | Yol | Açıklama |
+| --- | --- | --- |
+| GET | `{adminBasePath}` | Sayfalı liste — `page`, `size`, `email`, `deviceId`, `status` |
+| GET | `{adminBasePath}/{id}` | Detay: talep + tüm cevaplar |
+| POST | `{adminBasePath}/{id}/replies` | Ekip cevabı (`STAFF`) — `message` zorunlu |
+| PATCH | `{adminBasePath}/{id}/status` | Durum değiştir — `OPEN`, `ANSWERED`, `CLOSED` |
+| DELETE | `{adminBasePath}/{id}` | Talebi sil (cevapları da silinir) |
 
 `POST {basePath}` gövdesi:
 
@@ -182,13 +196,13 @@ flowchart LR
   CLOSED -->|PATCH status| OPEN
 ```
 
-Cevap gövdesi — `author` verilmezse `STAFF` kabul edilir:
+Cevap gövdesi yalnızca mesajdır; yazarı uç belirler (ekip ucu `STAFF`, kullanıcı ucu `USER`):
 
 ```json
-{ "message": "Konuyu inceledik, güncellemede düzeltilecek.", "author": "STAFF" }
+{ "message": "Konuyu inceledik, güncellemede düzeltilecek." }
 ```
 
-`GET {basePath}/{id}` cevabı, talebin tüm yazışmasını zaman sırasıyla döner:
+Detay cevabı, talebin tüm yazışmasını zaman sırasıyla döner:
 
 ```json
 {
@@ -205,7 +219,9 @@ Cevap gövdesi — `author` verilmezse `STAFF` kabul edilir:
 ```
 
 `GET {basePath}/device/{deviceId}` kullanıcının kendi taleplerini döner — `deviceId` tam eşleşir,
-her satırda `status` ve `replyCount` bulunur, `?status=OPEN` ile filtrelenebilir.
+`?status=OPEN` ile filtrelenebilir. Her satırda `status`, `replyCount`, `lastReplyAuthor` ve
+`lastReplyDate` bulunur. İstemci "yeni cevap var" bildirimini bunlarla verir: son cevap `STAFF`'tan
+ve `lastReplyDate` daha önce gördüğü tarihten farklıysa okunmamıştır.
 
 ## Tablolar
 
@@ -216,11 +232,17 @@ Kütüphane iki tablo kullanır: `tableName` (talepler) ve `replyTableName` (cev
 ## Yayınlama (JitPack)
 
 ```bash
-git tag 1.3.0
-git push origin 1.3.0
+git tag 2.0.0
+git push origin 2.0.0
 ```
 
 ## Sürüm notu
+
+`2.0.0` **kırıcı**: ekip uçları kullanıcı uçlarından ayrıldı. Önceden herkese açık olan liste,
+detay, cevap, durum ve silme uçları artık `supportAdminRoutes(config)` ile, `adminBasePath`
+altında ve projenin yetkisi içinde monte edilir. Kullanıcıya kendi talebinin detayı ve cevabı için
+`/device/{deviceId}/{id}` uçları geldi; cevap gövdesindeki `author` alanı kalktı. Listeye
+`lastReplyAuthor` ve `lastReplyDate` eklendi. Tablo değişikliği yok.
 
 `1.3.0` destek talebine opsiyonel fotoğraf ekledi: `SupportConfig.photoStorage`,
 `multipart/form-data` gövde desteği ve `photoUrl` alanı. Tabloya nullable `photo_url`

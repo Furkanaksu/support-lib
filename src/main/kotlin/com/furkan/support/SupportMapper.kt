@@ -2,7 +2,11 @@ package com.furkan.support
 
 import org.jetbrains.exposed.sql.ResultRow
 
-internal fun ResultRow.toSupportResponse(table: SupportTable, replyCount: Int) = SupportResponse(
+internal fun ResultRow.toSupportResponse(
+    table: SupportTable,
+    replyCount: Int,
+    lastReply: SupportReplyResponse? = null
+) = SupportResponse(
     id = this[table.id].value,
     deviceId = this[table.deviceId],
     email = this[table.email],
@@ -14,7 +18,9 @@ internal fun ResultRow.toSupportResponse(table: SupportTable, replyCount: Int) =
     status = SupportStatus.fromOrNull(this[table.status]) ?: SupportStatus.OPEN,
     replyCount = replyCount,
     createdDate = this[table.createdDate].toString(),
-    updatedDate = this[table.updatedDate]?.toString()
+    updatedDate = this[table.updatedDate]?.toString(),
+    lastReplyAuthor = lastReply?.author,
+    lastReplyDate = lastReply?.createdDate
 )
 
 internal fun ResultRow.toSupportDetailResponse(
