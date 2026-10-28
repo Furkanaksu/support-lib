@@ -30,6 +30,8 @@ class SupportReplyTable(tableName: String, support: SupportTable) : IntIdTable(t
     val supportId = reference("support_id", support, onDelete = ReferenceOption.CASCADE).index()
     val message = text("message")
     val author = varchar("author", 20)
+    /** Cevaba eklenen fotografin adresi; opsiyonel. */
+    val photoUrl = varchar("photo_url", 1000).nullable()
     val createdDate = datetime("created_date").index()
 }
 

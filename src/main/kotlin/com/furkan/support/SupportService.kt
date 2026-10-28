@@ -37,8 +37,12 @@ class SupportService(private val repository: SupportRepository) {
         null
     }
 
-    fun addReply(supportId: Int, message: String, author: SupportAuthor): SupportReplyResponse? =
-        repository.addReply(supportId, message, author)
+    fun addReply(
+        supportId: Int,
+        message: String,
+        author: SupportAuthor,
+        photoUrl: String? = null
+    ): SupportReplyResponse? = repository.addReply(supportId, message, author, photoUrl)
 
     fun updateStatus(supportId: Int, status: SupportStatus): SupportDetailResponse? =
         repository.updateStatus(supportId, status)

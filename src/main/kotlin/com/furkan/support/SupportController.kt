@@ -179,15 +179,39 @@ class SupportController(
             return
         }
 
-        val request = try {
-            call.receive<SupportReplyRequest>()
-        } catch (e: Exception) {
-            call.respond(HttpStatusCode.BadRequest, SupportErrorResponse(error = INVALID_BODY))
-            return
+        // Talep olusturmadaki gibi: duz JSON ya da multipart/form-data (message + photo).
+        val multipart = call.request.contentType().match(ContentType.MultiPart.FormData)
+
+        var photoBytes: ByteArray? = null
+        var photoFileName: String? = null
+        var photoContentType: String? = null
+
+        val request = if (multipart) {
+            when (val sonuc = call.multipartCevapOku(config)) {
+                is MultipartCevapSonuc.Hata -> {
+                    call.multipartHatasiDon(sonuc.hata)
+                    return
+                }
+                is MultipartCevapSonuc.Ok -> {
+                    photoBytes = sonuc.cevap.photoBytes
+                    photoFileName = sonuc.cevap.photoFileName
+                    photoContentType = sonuc.cevap.photoContentType
+                    sonuc.cevap.request
+                }
+            }
+        } else {
+            try {
+                call.receive<SupportReplyRequest>()
+            } catch (e: Exception) {
+                call.respond(HttpStatusCode.BadRequest, SupportErrorResponse(error = INVALID_BODY))
+                return
+            }
         }
 
-        val message = request.message?.trim()
-        if (message.isNullOrEmpty()) {
+        val message = request.message?.trim().orEmpty()
+        val externalPhotoUrl = request.photoUrl?.trim()?.takeIf { it.isNotEmpty() }
+        // Fotograf varsa mesaj bos olabilir; ikisi birden yoksa cevap anlamsizdir.
+        if (message.isEmpty() && photoBytes == null && externalPhotoUrl == null) {
             call.respond(HttpStatusCode.BadRequest, SupportErrorResponse(error = "message bos olamaz"))
             return
         }
@@ -198,7 +222,27 @@ class SupportController(
             return
         }
 
-        val reply = service.addReply(id, message, author)
+        // Yukleme sahiplik kontrolunden SONRA: baskasinin talebine depoya dosya birakilmaz.
+        val photoUrl = if (photoBytes != null && photoContentType != null) {
+            val depo = config.photoStorage
+            if (depo == null) {
+                call.multipartHatasiDon(MultipartHata.FotografKapali)
+                return
+            }
+            try {
+                depo.upload(photoBytes, fotografAdiUret(photoFileName, photoContentType), photoContentType)
+            } catch (e: Exception) {
+                call.respond(
+                    HttpStatusCode.ServiceUnavailable,
+                    SupportErrorResponse(error = "Fotograf yuklenemedi, cevabi fotografsiz gonderebilirsiniz")
+                )
+                return
+            }
+        } else {
+            externalPhotoUrl
+        }
+
+        val reply = service.addReply(id, message, author, photoUrl)
         if (reply == null) {
             call.respond(HttpStatusCode.NotFound, SupportErrorResponse(error = NOT_FOUND))
         } else {

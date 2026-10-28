@@ -28,24 +28,89 @@ internal sealed interface MultipartSonuc {
     data class Hata(val hata: MultipartHata) : MultipartSonuc
 }
 
+/** Multipart govdeden cikan cevap alanlari + (varsa) fotograf. */
+internal data class MultipartCevap(
+    val request: SupportReplyRequest,
+    val photoBytes: ByteArray?,
+    val photoFileName: String?,
+    val photoContentType: String?
+)
+
+internal sealed interface MultipartCevapSonuc {
+    data class Ok(val cevap: MultipartCevap) : MultipartCevapSonuc
+    data class Hata(val hata: MultipartHata) : MultipartCevapSonuc
+}
+
+/** Bir multipart govdenin ham hali: metin alanlari + `photo` parcasi. */
+private class MultipartGovde(
+    val alanlar: Map<String, String>,
+    val bytes: ByteArray?,
+    val fileName: String?,
+    val contentType: String?
+)
+
 /**
  * `multipart/form-data` govdesini okur.
  *
  * Beklenen alanlar JSON govdesiyle ayni adlari tasir: deviceId, email, description,
  * location, latitude, longitude. Fotograf `photo` adli dosya parcasinda gelir.
+ */
+internal suspend fun ApplicationCall.multipartTalepOku(config: SupportConfig): MultipartSonuc {
+    val govde = when (val okunan = multipartOku(config)) {
+        is GovdeSonuc.Hata -> return MultipartSonuc.Hata(okunan.hata)
+        is GovdeSonuc.Ok -> okunan.govde
+    }
+    val a = govde.alanlar
+    return MultipartSonuc.Ok(
+        MultipartTalep(
+            request = SupportRequest(
+                deviceId = a["deviceId"],
+                email = a["email"],
+                description = a["description"],
+                location = a["location"],
+                latitude = a["latitude"]?.trim()?.toDoubleOrNull(),
+                longitude = a["longitude"]?.trim()?.toDoubleOrNull(),
+                photoUrl = a["photoUrl"]
+            ),
+            photoBytes = govde.bytes,
+            photoFileName = govde.fileName,
+            photoContentType = govde.contentType
+        )
+    )
+}
+
+/** Cevap icin multipart govde: `message` (fotograf varsa bos olabilir) + `photo` dosyasi. */
+internal suspend fun ApplicationCall.multipartCevapOku(config: SupportConfig): MultipartCevapSonuc {
+    val govde = when (val okunan = multipartOku(config)) {
+        is GovdeSonuc.Hata -> return MultipartCevapSonuc.Hata(okunan.hata)
+        is GovdeSonuc.Ok -> okunan.govde
+    }
+    return MultipartCevapSonuc.Ok(
+        MultipartCevap(
+            request = SupportReplyRequest(
+                message = govde.alanlar["message"],
+                photoUrl = govde.alanlar["photoUrl"]
+            ),
+            photoBytes = govde.bytes,
+            photoFileName = govde.fileName,
+            photoContentType = govde.contentType
+        )
+    )
+}
+
+private sealed interface GovdeSonuc {
+    class Ok(val govde: MultipartGovde) : GovdeSonuc
+    class Hata(val hata: MultipartHata) : GovdeSonuc
+}
+
+/**
+ * Govdeyi okur: metin alanlari + `photo` dosyasi.
  *
  * Dosya, boyut siniri asilirsa OKUNMAYA DEVAM EDILMEZ: bellege tum dosyayi almadan
  * kesilir, boylece buyuk bir yukleme sunucuyu yormaz.
  */
-internal suspend fun ApplicationCall.multipartTalepOku(config: SupportConfig): MultipartSonuc {
-    var deviceId: String? = null
-    var email: String? = null
-    var description: String? = null
-    var location: String? = null
-    var latitude: Double? = null
-    var longitude: Double? = null
-    var photoUrl: String? = null
-
+private suspend fun ApplicationCall.multipartOku(config: SupportConfig): GovdeSonuc {
+    val alanlar = mutableMapOf<String, String>()
     var bytes: ByteArray? = null
     var fileName: String? = null
     var contentType: String? = null
@@ -54,15 +119,7 @@ internal suspend fun ApplicationCall.multipartTalepOku(config: SupportConfig): M
     try {
         receiveMultipart().forEachPart { part ->
             when (part) {
-                is PartData.FormItem -> when (part.name) {
-                    "deviceId" -> deviceId = part.value
-                    "email" -> email = part.value
-                    "description" -> description = part.value
-                    "location" -> location = part.value
-                    "latitude" -> latitude = part.value.trim().toDoubleOrNull()
-                    "longitude" -> longitude = part.value.trim().toDoubleOrNull()
-                    "photoUrl" -> photoUrl = part.value
-                }
+                is PartData.FormItem -> part.name?.let { alanlar[it] = part.value }
 
                 is PartData.FileItem -> if (part.name == "photo" && hata == null) {
                     if (config.photoStorage == null) {
@@ -91,27 +148,11 @@ internal suspend fun ApplicationCall.multipartTalepOku(config: SupportConfig): M
             part.dispose()
         }
     } catch (e: Exception) {
-        return MultipartSonuc.Hata(MultipartHata.Bozuk)
+        return GovdeSonuc.Hata(MultipartHata.Bozuk)
     }
 
-    hata?.let { return MultipartSonuc.Hata(it) }
-
-    return MultipartSonuc.Ok(
-        MultipartTalep(
-            request = SupportRequest(
-                deviceId = deviceId,
-                email = email,
-                description = description,
-                location = location,
-                latitude = latitude,
-                longitude = longitude,
-                photoUrl = photoUrl
-            ),
-            photoBytes = bytes,
-            photoFileName = fileName,
-            photoContentType = contentType
-        )
-    )
+    hata?.let { return GovdeSonuc.Hata(it) }
+    return GovdeSonuc.Ok(MultipartGovde(alanlar, bytes, fileName, contentType))
 }
 
 /** Depoya verilecek benzersiz ad. Istemcinin gonderdigi ad guvenilmez, sadece uzantisi alinir. */

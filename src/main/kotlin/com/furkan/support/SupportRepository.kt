@@ -108,7 +108,12 @@ class SupportRepository(
      * Talebe cevap ekler ve durumu gunceller:
      * destek ekibi yazdiysa ANSWERED, kullanici yazdiysa tekrar OPEN.
      */
-    fun addReply(supportId: Int, message: String, author: SupportAuthor): SupportReplyResponse? =
+    fun addReply(
+        supportId: Int,
+        message: String,
+        author: SupportAuthor,
+        photoUrl: String? = null
+    ): SupportReplyResponse? =
         transaction(database) {
             val exists = table.selectAll().where { table.id eq supportId }.limit(1).any()
             if (!exists) return@transaction null
@@ -119,6 +124,7 @@ class SupportRepository(
                 it[this.message] = message
                 it[this.author] = author.name
                 it[this.createdDate] = now
+                it[this.photoUrl] = photoUrl
             }
 
             val newStatus = if (author == SupportAuthor.STAFF) SupportStatus.ANSWERED else SupportStatus.OPEN
@@ -132,7 +138,8 @@ class SupportRepository(
                 supportId = supportId,
                 message = message,
                 author = author,
-                createdDate = now.toString()
+                createdDate = now.toString(),
+                photoUrl = photoUrl
             )
         }
 

@@ -202,6 +202,11 @@ Cevap gövdesi yalnızca mesajdır; yazarı uç belirler (ekip ucu `STAFF`, kull
 { "message": "Konuyu inceledik, güncellemede düzeltilecek." }
 ```
 
+Cevaba fotoğraf eklemek için gövde `multipart/form-data` olur: `message` alanı + `photo` dosyası
+(talep oluştururken olduğu gibi aynı boyut ve tür sınırları). Fotoğraf varsa `message` boş
+olabilir. Fotoğrafı kendi yükleyen istemci JSON'da `photoUrl` gönderebilir. Cevapta ve detaydaki
+her cevapta `photoUrl` döner.
+
 Detay cevabı, talebin tüm yazışmasını zaman sırasıyla döner:
 
 ```json
@@ -237,6 +242,10 @@ git push origin 2.0.0
 ```
 
 ## Sürüm notu
+
+`2.1.0` cevaplara opsiyonel fotoğraf ekledi: cevap uçları `multipart/form-data` (`message` +
+`photo`) kabul eder, `SupportReplyResponse.photoUrl` döner. Cevap tablosuna nullable `photo_url`
+kolonu eklenir (`migrate()` halleder). Kırıcı değişiklik yok; JSON cevaplar aynen çalışır.
 
 `2.0.0` **kırıcı**: ekip uçları kullanıcı uçlarından ayrıldı. Önceden herkese açık olan liste,
 detay, cevap, durum ve silme uçları artık `supportAdminRoutes(config)` ile, `adminBasePath`

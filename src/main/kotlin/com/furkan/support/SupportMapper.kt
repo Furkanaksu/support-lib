@@ -46,5 +46,6 @@ internal fun ResultRow.toSupportReplyResponse(table: SupportReplyTable) = Suppor
     supportId = this[table.supportId].value,
     message = this[table.message],
     author = SupportAuthor.fromOrNull(this[table.author]) ?: SupportAuthor.STAFF,
-    createdDate = this[table.createdDate].toString()
+    createdDate = this[table.createdDate].toString(),
+    photoUrl = this[table.photoUrl]
 )

@@ -66,13 +66,21 @@ data class SupportReplyResponse(
     val supportId: Int,
     val message: String,
     val author: SupportAuthor,
-    val createdDate: String
+    val createdDate: String,
+    /** Cevaba eklenen fotografin adresi. */
+    val photoUrl: String? = null
 )
 
-/** Cevap yazma govdesi. Yazari uc belirler (admin ucu STAFF, kullanici ucu USER). */
+/**
+ * Cevap yazma govdesi. Yazari uc belirler (admin ucu STAFF, kullanici ucu USER).
+ * Fotografi API'ye yuklemek isteyenler multipart/form-data kullanir: `message` + `photo`.
+ * Fotograf varsa mesaj bos olabilir.
+ */
 @Serializable
 data class SupportReplyRequest(
-    val message: String? = null
+    val message: String? = null,
+    /** Fotografi baska yere kendi yukleyen istemciler adresi burada gonderir. */
+    val photoUrl: String? = null
 )
 
 /** Durum degistirme govdesi: OPEN | ANSWERED | CLOSED. */
