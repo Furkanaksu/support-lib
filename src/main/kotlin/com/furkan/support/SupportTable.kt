@@ -18,6 +18,11 @@ class SupportTable(tableName: String) : IntIdTable(tableName) {
     val longitude = double("longitude").nullable()
     /** Talebe eklenen fotografin adresi. Fotograf opsiyonel oldugu icin nullable. */
     val photoUrl = varchar("photo_url", 1000).nullable()
+    /**
+     * Talebin tum fotograflari, satir satir. [photoUrl] ilkini tutar (eski okuyucular icin).
+     * Bu kolondan once acilan taleplerde bos; o zaman [photoUrl] tek fotograftir.
+     */
+    val photoUrls = text("photo_urls").nullable()
     val status = varchar("status", 20).default(SupportStatus.OPEN.name).index()
     val createdDate = datetime("created_date").index()
     val updatedDate = datetime("updated_date").nullable().default(null)

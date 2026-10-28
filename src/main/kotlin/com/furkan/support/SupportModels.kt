@@ -35,6 +35,8 @@ data class SupportResponse(
     val latitude: Double?,
     val longitude: Double?,
     val photoUrl: String? = null,
+    /** Talebin tum fotograflari; ilki [photoUrl] ile aynidir. */
+    val photoUrls: List<String> = emptyList(),
     val status: SupportStatus,
     val replyCount: Int,
     val createdDate: String,
@@ -54,6 +56,8 @@ data class SupportDetailResponse(
     val latitude: Double?,
     val longitude: Double?,
     val photoUrl: String? = null,
+    /** Talebin tum fotograflari; ilki [photoUrl] ile aynidir. */
+    val photoUrls: List<String> = emptyList(),
     val status: SupportStatus,
     val createdDate: String,
     val updatedDate: String? = null,

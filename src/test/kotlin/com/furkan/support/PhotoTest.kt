@@ -347,4 +347,68 @@ class PhotoTest {
 
         assertEquals(HttpStatusCode.BadRequest, fotografliCevap("/support/device/cihaz-1/$id/replies").status)
     }
+
+    private suspend fun ApplicationTestBuilder.ekranGoruntulu(adet: Int, parcaAdi: String = "screenshots"): HttpResponse =
+        client.post("/support") {
+            setBody(
+                MultiPartFormDataContent(
+                    formData {
+                        append("deviceId", "cihaz-1")
+                        append("email", "ali@ornek.com")
+                        append("description", "Vakitler gelmiyor")
+                        repeat(adet) { i ->
+                            append(
+                                parcaAdi, ByteArray(32) { i.toByte() },
+                                Headers.build {
+                                    append(HttpHeaders.ContentType, "image/jpeg")
+                                    append(HttpHeaders.ContentDisposition, "filename=\"screenshot_${i + 1}.jpg\"")
+                                }
+                            )
+                        }
+                    }
+                )
+            )
+        }
+
+    @Test
+    fun `eski Android istemcisinin screenshots parcalari kaybolmaz`() = testApplication {
+        val depo = SahteDepo()
+        setup(config("f17", depo))
+
+        val talep = ekranGoruntulu(3).decode<SupportResponse>()
+        assertEquals(3, depo.cagriSayisi)
+        assertEquals(3, talep.photoUrls.size)
+        assertEquals(talep.photoUrls.first(), talep.photoUrl)
+
+        val kayit = client.get("/admin/support/${talep.id}").decode<SupportDetailResponse>()
+        assertEquals(talep.photoUrls, kayit.photoUrls)
+        val liste = client.get("/support/device/cihaz-1").decode<PaginatedSupportResponse>()
+        assertEquals(talep.photoUrls, liste.data.single().photoUrls)
+    }
+
+    @Test
+    fun `sinirdan fazla fotograf yok sayilir`() = testApplication {
+        val depo = SahteDepo()
+        setup(config("f18", depo))
+
+        val talep = ekranGoruntulu(5, parcaAdi = "photo")
+        assertEquals(HttpStatusCode.Created, talep.status)
+        assertEquals(3, talep.decode<SupportResponse>().photoUrls.size)
+        assertEquals(3, depo.cagriSayisi)
+    }
+
+    @Test
+    fun `tek fotografli ve fotografsiz taleplerde liste tutarli`() = testApplication {
+        val depo = SahteDepo()
+        setup(config("f19", depo))
+
+        val tek = fotografli().decode<SupportResponse>()
+        assertEquals(listOf(tek.photoUrl!!), tek.photoUrls)
+
+        val bos = client.post("/support") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"deviceId":"cihaz-1","email":"a@b.com","description":"x"}""")
+        }.decode<SupportResponse>()
+        assertTrue(bos.photoUrls.isEmpty())
+    }
 }

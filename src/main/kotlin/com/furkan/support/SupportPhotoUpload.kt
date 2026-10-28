@@ -7,12 +7,20 @@ import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.receiveMultipart
 import java.util.UUID
 
-/** Multipart govdeden cikan talep alanlari + (varsa) fotograf. */
+/** Fotograf dosya parcasinin kabul edilen adlari. "screenshots" eski Android istemcilerinin adidir. */
+internal val FOTOGRAF_PARCA_ADLARI = setOf("photo", "screenshots")
+
+/** Govdeden okunmus, henuz depoya yuklenmemis bir fotograf. */
+internal class GelenFoto(
+    val bytes: ByteArray,
+    val fileName: String?,
+    val contentType: String
+)
+
+/** Multipart govdeden cikan talep alanlari + (varsa) fotograflar. */
 internal data class MultipartTalep(
     val request: SupportRequest,
-    val photoBytes: ByteArray?,
-    val photoFileName: String?,
-    val photoContentType: String?
+    val photos: List<GelenFoto>
 )
 
 /** Multipart okunurken olusan, istemciye donulecek hatalar. */
@@ -28,12 +36,10 @@ internal sealed interface MultipartSonuc {
     data class Hata(val hata: MultipartHata) : MultipartSonuc
 }
 
-/** Multipart govdeden cikan cevap alanlari + (varsa) fotograf. */
+/** Multipart govdeden cikan cevap alanlari + (varsa) tek fotograf. */
 internal data class MultipartCevap(
     val request: SupportReplyRequest,
-    val photoBytes: ByteArray?,
-    val photoFileName: String?,
-    val photoContentType: String?
+    val photo: GelenFoto?
 )
 
 internal sealed interface MultipartCevapSonuc {
@@ -41,22 +47,26 @@ internal sealed interface MultipartCevapSonuc {
     data class Hata(val hata: MultipartHata) : MultipartCevapSonuc
 }
 
-/** Bir multipart govdenin ham hali: metin alanlari + `photo` parcasi. */
+/** Bir multipart govdenin ham hali: metin alanlari + fotograf parcalari. */
 private class MultipartGovde(
     val alanlar: Map<String, String>,
-    val bytes: ByteArray?,
-    val fileName: String?,
-    val contentType: String?
+    val photos: List<GelenFoto>
 )
+
+private sealed interface GovdeSonuc {
+    class Ok(val govde: MultipartGovde) : GovdeSonuc
+    class Hata(val hata: MultipartHata) : GovdeSonuc
+}
 
 /**
  * `multipart/form-data` govdesini okur.
  *
  * Beklenen alanlar JSON govdesiyle ayni adlari tasir: deviceId, email, description,
- * location, latitude, longitude. Fotograf `photo` adli dosya parcasinda gelir.
+ * location, latitude, longitude. Fotograflar `photo` (ya da eski istemcilerde `screenshots`)
+ * adli dosya parcalarinda gelir; en fazla [SupportConfig.maxPhotos] tanesi alinir.
  */
 internal suspend fun ApplicationCall.multipartTalepOku(config: SupportConfig): MultipartSonuc {
-    val govde = when (val okunan = multipartOku(config)) {
+    val govde = when (val okunan = multipartOku(config, config.maxPhotos)) {
         is GovdeSonuc.Hata -> return MultipartSonuc.Hata(okunan.hata)
         is GovdeSonuc.Ok -> okunan.govde
     }
@@ -72,16 +82,14 @@ internal suspend fun ApplicationCall.multipartTalepOku(config: SupportConfig): M
                 longitude = a["longitude"]?.trim()?.toDoubleOrNull(),
                 photoUrl = a["photoUrl"]
             ),
-            photoBytes = govde.bytes,
-            photoFileName = govde.fileName,
-            photoContentType = govde.contentType
+            photos = govde.photos
         )
     )
 }
 
-/** Cevap icin multipart govde: `message` (fotograf varsa bos olabilir) + `photo` dosyasi. */
+/** Cevap icin multipart govde: `message` (fotograf varsa bos olabilir) + tek `photo` dosyasi. */
 internal suspend fun ApplicationCall.multipartCevapOku(config: SupportConfig): MultipartCevapSonuc {
-    val govde = when (val okunan = multipartOku(config)) {
+    val govde = when (val okunan = multipartOku(config, limit = 1)) {
         is GovdeSonuc.Hata -> return MultipartCevapSonuc.Hata(okunan.hata)
         is GovdeSonuc.Ok -> okunan.govde
     }
@@ -91,29 +99,20 @@ internal suspend fun ApplicationCall.multipartCevapOku(config: SupportConfig): M
                 message = govde.alanlar["message"],
                 photoUrl = govde.alanlar["photoUrl"]
             ),
-            photoBytes = govde.bytes,
-            photoFileName = govde.fileName,
-            photoContentType = govde.contentType
+            photo = govde.photos.firstOrNull()
         )
     )
 }
 
-private sealed interface GovdeSonuc {
-    class Ok(val govde: MultipartGovde) : GovdeSonuc
-    class Hata(val hata: MultipartHata) : GovdeSonuc
-}
-
 /**
- * Govdeyi okur: metin alanlari + `photo` dosyasi.
+ * Govdeyi okur: metin alanlari + en fazla [limit] fotograf. Fazlasi okunmadan atlanir.
  *
  * Dosya, boyut siniri asilirsa OKUNMAYA DEVAM EDILMEZ: bellege tum dosyayi almadan
  * kesilir, boylece buyuk bir yukleme sunucuyu yormaz.
  */
-private suspend fun ApplicationCall.multipartOku(config: SupportConfig): GovdeSonuc {
+private suspend fun ApplicationCall.multipartOku(config: SupportConfig, limit: Int): GovdeSonuc {
     val alanlar = mutableMapOf<String, String>()
-    var bytes: ByteArray? = null
-    var fileName: String? = null
-    var contentType: String? = null
+    val fotolar = mutableListOf<GelenFoto>()
     var hata: MultipartHata? = null
 
     try {
@@ -121,7 +120,7 @@ private suspend fun ApplicationCall.multipartOku(config: SupportConfig): GovdeSo
             when (part) {
                 is PartData.FormItem -> part.name?.let { alanlar[it] = part.value }
 
-                is PartData.FileItem -> if (part.name == "photo" && hata == null) {
+                is PartData.FileItem -> if (part.name in FOTOGRAF_PARCA_ADLARI && hata == null && fotolar.size < limit) {
                     if (config.photoStorage == null) {
                         hata = MultipartHata.FotografKapali
                     } else {
@@ -135,9 +134,7 @@ private suspend fun ApplicationCall.multipartOku(config: SupportConfig): GovdeSo
                             if (okunan.size > config.maxPhotoBytes) {
                                 hata = MultipartHata.CokBuyuk(config.maxPhotoBytes)
                             } else {
-                                bytes = okunan
-                                contentType = tur
-                                fileName = part.originalFileName
+                                fotolar += GelenFoto(okunan, part.originalFileName, tur)
                             }
                         }
                     }
@@ -152,7 +149,7 @@ private suspend fun ApplicationCall.multipartOku(config: SupportConfig): GovdeSo
     }
 
     hata?.let { return GovdeSonuc.Hata(it) }
-    return GovdeSonuc.Ok(MultipartGovde(alanlar, bytes, fileName, contentType))
+    return GovdeSonuc.Ok(MultipartGovde(alanlar, fotolar))
 }
 
 /** Depoya verilecek benzersiz ad. Istemcinin gonderdigi ad guvenilmez, sadece uzantisi alinir. */

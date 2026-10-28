@@ -243,7 +243,7 @@ git push origin 2.0.0
 
 ## Sürüm notu
 
-`2.1.0` cevaplara opsiyonel fotoğraf ekledi: cevap uçları `multipart/form-data` (`message` +
+`2.1.0` talebe birden çok fotoğraf (`SupportConfig.maxPhotos`, varsayılan 3; `photoUrls` listesi, `photo_urls` kolonu) ve cevaplara opsiyonel fotoğraf ekledi. Dosya parçası `photo` ya da `screenshots` adıyla gelebilir (eski Android istemcisi `screenshots` gönderiyordu ve bu parçalar önceki sürümlerde atılıyordu). Cevap tarafında: cevap uçları `multipart/form-data` (`message` +
 `photo`) kabul eder, `SupportReplyResponse.photoUrl` döner. Cevap tablosuna nullable `photo_url`
 kolonu eklenir (`migrate()` halleder). Kırıcı değişiklik yok; JSON cevaplar aynen çalışır.
 

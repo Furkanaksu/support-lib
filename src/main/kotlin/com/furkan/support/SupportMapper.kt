@@ -15,6 +15,7 @@ internal fun ResultRow.toSupportResponse(
     latitude = this[table.latitude],
     longitude = this[table.longitude],
     photoUrl = this[table.photoUrl],
+    photoUrls = decodePhotoUrls(this[table.photoUrls], this[table.photoUrl]),
     status = SupportStatus.fromOrNull(this[table.status]) ?: SupportStatus.OPEN,
     replyCount = replyCount,
     createdDate = this[table.createdDate].toString(),
@@ -35,6 +36,7 @@ internal fun ResultRow.toSupportDetailResponse(
     latitude = this[table.latitude],
     longitude = this[table.longitude],
     photoUrl = this[table.photoUrl],
+    photoUrls = decodePhotoUrls(this[table.photoUrls], this[table.photoUrl]),
     status = SupportStatus.fromOrNull(this[table.status]) ?: SupportStatus.OPEN,
     createdDate = this[table.createdDate].toString(),
     updatedDate = this[table.updatedDate]?.toString(),
@@ -49,3 +51,12 @@ internal fun ResultRow.toSupportReplyResponse(table: SupportReplyTable) = Suppor
     createdDate = this[table.createdDate].toString(),
     photoUrl = this[table.photoUrl]
 )
+
+/** Fotograf adresleri tek kolonda satir satir saklanir; adreslerde satir sonu olmaz. */
+internal fun encodePhotoUrls(urls: List<String>): String? =
+    urls.takeIf { it.isNotEmpty() }?.joinToString("\n")
+
+/** Eski kayitlarda liste kolonu bos, tek fotograf [photoUrl] kolonundadir. */
+internal fun decodePhotoUrls(raw: String?, photoUrl: String?): List<String> =
+    raw?.lines()?.filter { it.isNotBlank() }?.takeIf { it.isNotEmpty() }
+        ?: listOfNotNull(photoUrl)

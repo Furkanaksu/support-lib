@@ -78,9 +78,7 @@ class SupportController(
         // (fotograf eklemek isteyenler). Multipart'ta alan adlari JSON'dakiyle aynidir.
         val multipart = call.request.contentType().match(ContentType.MultiPart.FormData)
 
-        var photoBytes: ByteArray? = null
-        var photoFileName: String? = null
-        var photoContentType: String? = null
+        var photos: List<GelenFoto> = emptyList()
 
         val request = if (multipart) {
             when (val sonuc = call.multipartTalepOku(config)) {
@@ -89,9 +87,7 @@ class SupportController(
                     return
                 }
                 is MultipartSonuc.Ok -> {
-                    photoBytes = sonuc.talep.photoBytes
-                    photoFileName = sonuc.talep.photoFileName
-                    photoContentType = sonuc.talep.photoContentType
+                    photos = sonuc.talep.photos
                     sonuc.talep.request
                 }
             }
@@ -122,23 +118,12 @@ class SupportController(
         }
 
         // Yukleme dogrulamadan SONRA yapilir: gecersiz istek icin depoya bosuna gidilmez.
-        val photoUrl = if (photoBytes != null && photoContentType != null) {
-            val depo = config.photoStorage
-            if (depo == null) {
-                call.multipartHatasiDon(MultipartHata.FotografKapali)
-                return
-            }
-            try {
-                depo.upload(photoBytes, fotografAdiUret(photoFileName, photoContentType), photoContentType)
-            } catch (e: Exception) {
-                call.respond(
-                    HttpStatusCode.ServiceUnavailable,
-                    SupportErrorResponse(error = "Fotograf yuklenemedi, talebi fotografsiz gonderebilirsiniz")
-                )
-                return
+        val photoUrls = if (photos.isNotEmpty()) {
+            photos.map { foto ->
+                call.fotografYukle(foto, "Fotograf yuklenemedi, talebi fotografsiz gonderebilirsiniz") ?: return
             }
         } else {
-            request.photoUrl?.trim()?.takeIf { it.isNotEmpty() }
+            listOfNotNull(request.photoUrl?.trim()?.takeIf { it.isNotEmpty() })
         }
 
         val created = service.createSupport(
@@ -148,7 +133,7 @@ class SupportController(
             location = request.location,
             latitude = request.latitude,
             longitude = request.longitude,
-            photoUrl = photoUrl
+            photoUrls = photoUrls
         )
 
         if (created != null) {
@@ -182,9 +167,7 @@ class SupportController(
         // Talep olusturmadaki gibi: duz JSON ya da multipart/form-data (message + photo).
         val multipart = call.request.contentType().match(ContentType.MultiPart.FormData)
 
-        var photoBytes: ByteArray? = null
-        var photoFileName: String? = null
-        var photoContentType: String? = null
+        var photo: GelenFoto? = null
 
         val request = if (multipart) {
             when (val sonuc = call.multipartCevapOku(config)) {
@@ -193,9 +176,7 @@ class SupportController(
                     return
                 }
                 is MultipartCevapSonuc.Ok -> {
-                    photoBytes = sonuc.cevap.photoBytes
-                    photoFileName = sonuc.cevap.photoFileName
-                    photoContentType = sonuc.cevap.photoContentType
+                    photo = sonuc.cevap.photo
                     sonuc.cevap.request
                 }
             }
@@ -211,7 +192,7 @@ class SupportController(
         val message = request.message?.trim().orEmpty()
         val externalPhotoUrl = request.photoUrl?.trim()?.takeIf { it.isNotEmpty() }
         // Fotograf varsa mesaj bos olabilir; ikisi birden yoksa cevap anlamsizdir.
-        if (message.isEmpty() && photoBytes == null && externalPhotoUrl == null) {
+        if (message.isEmpty() && photo == null && externalPhotoUrl == null) {
             call.respond(HttpStatusCode.BadRequest, SupportErrorResponse(error = "message bos olamaz"))
             return
         }
@@ -223,21 +204,8 @@ class SupportController(
         }
 
         // Yukleme sahiplik kontrolunden SONRA: baskasinin talebine depoya dosya birakilmaz.
-        val photoUrl = if (photoBytes != null && photoContentType != null) {
-            val depo = config.photoStorage
-            if (depo == null) {
-                call.multipartHatasiDon(MultipartHata.FotografKapali)
-                return
-            }
-            try {
-                depo.upload(photoBytes, fotografAdiUret(photoFileName, photoContentType), photoContentType)
-            } catch (e: Exception) {
-                call.respond(
-                    HttpStatusCode.ServiceUnavailable,
-                    SupportErrorResponse(error = "Fotograf yuklenemedi, cevabi fotografsiz gonderebilirsiniz")
-                )
-                return
-            }
+        val photoUrl = if (photo != null) {
+            call.fotografYukle(photo, "Fotograf yuklenemedi, cevabi fotografsiz gonderebilirsiniz") ?: return
         } else {
             externalPhotoUrl
         }
@@ -313,6 +281,24 @@ class SupportController(
         const val NOT_FOUND = "Kayit bulunamadi"
         const val INVALID_BODY = "Gecersiz istek govdesi"
         const val INVALID_STATUS = "Gecersiz status. Gecerli degerler: OPEN, ANSWERED, CLOSED"
+    }
+
+    /**
+     * Fotografi depoya yukler ve adresini doner. Yuklenemezse istemciye hatayi yazar ve null doner;
+     * cagiran taraf o zaman istegi bitirir.
+     */
+    private suspend fun ApplicationCall.fotografYukle(foto: GelenFoto, hataMesaji: String): String? {
+        val depo = config.photoStorage
+        if (depo == null) {
+            multipartHatasiDon(MultipartHata.FotografKapali)
+            return null
+        }
+        return try {
+            depo.upload(foto.bytes, fotografAdiUret(foto.fileName, foto.contentType), foto.contentType)
+        } catch (e: Exception) {
+            respond(HttpStatusCode.ServiceUnavailable, SupportErrorResponse(error = hataMesaji))
+            null
+        }
     }
 
     /** Multipart okuma hatalarini istemciye anlamli HTTP koduyla dondurur. */
