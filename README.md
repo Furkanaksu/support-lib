@@ -160,6 +160,7 @@ kütüphane bunları korumaz, proje kendi yetkisinin içine monte eder:
 | POST | `{adminBasePath}/{id}/replies` | Ekip cevabı (`STAFF`) — `message` zorunlu |
 | PATCH | `{adminBasePath}/{id}/status` | Durum değiştir — `OPEN`, `ANSWERED`, `CLOSED` |
 | DELETE | `{adminBasePath}/{id}` | Talebi sil (cevapları da silinir) |
+| DELETE | `{adminBasePath}?olderThanDays=7[&dryRun=true]` | Son hareketi (updatedDate, yoksa createdDate) N günden eski talepleri cevap ve fotoğraflarıyla toplu sil; `dryRun` sadece sayar. Cevap: `{ deleted, dryRun, photosDeleted, photosFailed }` |
 
 `POST {basePath}` gövdesi:
 
@@ -278,3 +279,5 @@ Tüketen projenin `repositories` bloğuna `mavenLocal()` eklemen yeterli.
 ```bash
 ./gradlew build
 ```
+
+`2.2.0` toplu silme ucunu (`DELETE {adminBasePath}?olderThanDays=N`) ve `SupportPhotoStorage.delete(url)` kancasını ekledi. Kanca varsayılan olarak hiçbir şey yapmaz; mevcut `SupportPhotoStorage { ... }` lambdaları değişmeden derlenir.

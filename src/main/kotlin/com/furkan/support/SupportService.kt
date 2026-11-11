@@ -1,5 +1,7 @@
 package com.furkan.support
 
+import java.time.LocalDateTime
+
 class SupportService(private val repository: SupportRepository) {
 
     fun getSupports(
@@ -48,4 +50,8 @@ class SupportService(private val repository: SupportRepository) {
         repository.updateStatus(supportId, status)
 
     fun deleteSupport(id: Int): Boolean = repository.delete(id)
+
+    fun countStale(cutoff: LocalDateTime): Int = repository.countStale(cutoff)
+
+    fun deleteStale(cutoff: LocalDateTime): StaleDeleteResult = repository.deleteStale(cutoff)
 }

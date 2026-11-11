@@ -29,6 +29,13 @@ fun interface SupportPhotoStorage {
      * @throws SupportPhotoException yukleme basarisizsa.
      */
     suspend fun upload(bytes: ByteArray, fileName: String, contentType: String): String
+
+    /**
+     * [upload]'in dondurdugu adresteki fotografi siler. Toplu silmede cagrilir.
+     * Varsayilan hicbir sey yapmaz: depo silmeyi desteklemiyorsa fotograflar yerinde kalir.
+     * Hata firlatirsa silme yine basarili sayilir, sadece sayilir.
+     */
+    suspend fun delete(url: String) {}
 }
 
 /** Fotograf saklanamadi: ag hatasi, kota, yetki... */

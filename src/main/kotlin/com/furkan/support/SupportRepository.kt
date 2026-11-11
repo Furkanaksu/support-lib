@@ -11,6 +11,7 @@ import org.jetbrains.exposed.sql.count
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.lowerCase
+import org.jetbrains.exposed.sql.or
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
@@ -20,6 +21,9 @@ import java.time.LocalDateTime
  * Tum sorgular `transaction(database)` ile, disaridan verilen DB uzerinde calisir.
  * Kutuphane global transaction'a ya da kendi baglantisina asla guvenmez.
  */
+/** Toplu silmenin sonucu: silinen talep sayisi ve depodan silinecek fotograflar. */
+data class StaleDeleteResult(val deleted: Int, val photoUrls: List<String>)
+
 class SupportRepository(
     private val database: Database,
     private val table: SupportTable,
@@ -161,6 +165,40 @@ class SupportRepository(
 
     fun delete(id: Int): Boolean = transaction(database) {
         table.deleteWhere { builder -> builder.run { table.id eq id } } > 0
+    }
+
+    /** Son hareketi [cutoff]'tan eski talep sayisi. */
+    fun countStale(cutoff: LocalDateTime): Int = transaction(database) {
+        table.selectAll().where(staleCondition(cutoff)).count().toInt()
+    }
+
+    /**
+     * Son hareketi [cutoff]'tan eski talepleri ve cevaplarini siler; silinen kayitlardaki
+     * fotograf adreslerini doner ki cagiran taraf depodan da silebilsin.
+     */
+    fun deleteStale(cutoff: LocalDateTime): StaleDeleteResult = transaction(database) {
+        val rows = table.selectAll().where(staleCondition(cutoff)).toList()
+        if (rows.isEmpty()) return@transaction StaleDeleteResult(0, emptyList())
+
+        val ids = rows.map { it[table.id] }
+        val photos = mutableSetOf<String>()
+        rows.forEach { photos += decodePhotoUrls(it[table.photoUrls], it[table.photoUrl]) }
+
+        ids.chunked(500).forEach { chunk ->
+            replyTable.select(replyTable.photoUrl)
+                .where { replyTable.supportId inList chunk }
+                .mapNotNullTo(photos) { it[replyTable.photoUrl] }
+            // CASCADE'e guvenmeden: eski DB'lerde yabanci anahtar olmayabilir.
+            replyTable.deleteWhere { builder -> builder.run { replyTable.supportId inList chunk } }
+            table.deleteWhere { builder -> builder.run { table.id inList chunk } }
+        }
+
+        StaleDeleteResult(ids.size, photos.filter { it.isNotBlank() })
+    }
+
+    /** Son hareket: updatedDate; hic guncellenmemisse createdDate. */
+    private fun staleCondition(cutoff: LocalDateTime): SqlExpressionBuilder.() -> Op<Boolean> = {
+        (table.updatedDate less cutoff) or (table.updatedDate.isNull() and (table.createdDate less cutoff))
     }
 
     private fun buildCondition(

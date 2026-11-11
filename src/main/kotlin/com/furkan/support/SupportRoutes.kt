@@ -52,6 +52,9 @@ fun Route.supportRoutes(config: SupportConfig) {
  * - `POST   {adminBasePath}/{id}/replies`  ekip cevabi (STAFF -> ANSWERED)
  * - `PATCH  {adminBasePath}/{id}/status`   durum degistir (OPEN | ANSWERED | CLOSED)
  * - `DELETE {adminBasePath}/{id}`          talebi sil (cevaplari da silinir)
+ * - `DELETE {adminBasePath}?olderThanDays=7[&dryRun=true]`
+ *                                          son hareketi N gunden eski talepleri toplu sil
+ *                                          (cevaplari ve fotograflari da); dryRun yalnizca sayar
  */
 fun Route.supportAdminRoutes(config: SupportConfig) {
     val controller = controllerOf(config)
@@ -61,6 +64,7 @@ fun Route.supportAdminRoutes(config: SupportConfig) {
         get("/{id}") { controller.getSupportById(call) }
         post("/{id}/replies") { controller.addReply(call, SupportAuthor.STAFF) }
         patch("/{id}/status") { controller.updateStatus(call) }
+        delete { controller.deleteStaleSupports(call) }
         delete("/{id}") { controller.deleteSupport(call) }
     }
 }

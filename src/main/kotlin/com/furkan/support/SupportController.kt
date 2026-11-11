@@ -6,6 +6,7 @@ import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.contentType
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
+import java.time.LocalDateTime
 
 class SupportController(
     private val service: SupportService,
@@ -259,6 +260,50 @@ class SupportController(
         } else {
             call.respond(HttpStatusCode.NotFound, SupportErrorResponse(error = NOT_FOUND))
         }
+    }
+
+    /**
+     * Son hareketi (son cevap / durum degisikligi, hic yoksa acilis) [olderThanDays] gunden
+     * eski talepleri, cevaplariyla birlikte siler. Fotograflar depodan silinmeye calisilir;
+     * silinemeyen fotograf istegi bozmaz. `dryRun=true` hicbir sey silmeden sayiyi doner.
+     */
+    suspend fun deleteStaleSupports(call: ApplicationCall) {
+        val days = call.request.queryParameters["olderThanDays"]?.toIntOrNull()
+        if (days == null || days < 1) {
+            call.respond(
+                HttpStatusCode.BadRequest,
+                SupportErrorResponse(error = "olderThanDays en az 1 olan bir sayi olmali")
+            )
+            return
+        }
+        val dryRun = call.request.queryParameters["dryRun"]?.toBoolean() == true
+        val cutoff = LocalDateTime.now().minusDays(days.toLong())
+
+        if (dryRun) {
+            call.respond(SupportBulkDeleteResponse(deleted = service.countStale(cutoff), dryRun = true))
+            return
+        }
+
+        val result = service.deleteStale(cutoff)
+        var failedPhotos = 0
+        val storage = config.photoStorage
+        if (storage != null) {
+            result.photoUrls.forEach { url ->
+                try {
+                    storage.delete(url)
+                } catch (e: Exception) {
+                    failedPhotos++
+                    println("[support-lib] fotograf silinemedi: $url (${e.message})")
+                }
+            }
+        }
+        call.respond(
+            SupportBulkDeleteResponse(
+                deleted = result.deleted,
+                photosDeleted = if (storage == null) 0 else result.photoUrls.size - failedPhotos,
+                photosFailed = failedPhotos
+            )
+        )
     }
 
     private fun page(call: ApplicationCall) =

@@ -107,3 +107,12 @@ data class SupportErrorResponse(
     val status: String = "fail",
     val error: String
 )
+
+/** Toplu silme cevabi. dryRun'da [deleted] silinecek talep sayisidir, hicbir sey silinmez. */
+@Serializable
+data class SupportBulkDeleteResponse(
+    val deleted: Int,
+    val dryRun: Boolean = false,
+    val photosDeleted: Int = 0,
+    val photosFailed: Int = 0
+)
